@@ -1,22 +1,11 @@
-/*
-// CAPTURE AND SEND IMAGE OVER ESP NOW
-// Code by: Tal Ofer
-// https://github.com/talofer99/ESP32CAM-Capture-and-send-image-over-esp-now
-//
-// This is the camera portion of the code.
-//
-// for more information
-// https://www.youtube.com/watch?v=0s4Bm9Ar42U
-*/
-
-
 #include "Arduino.h"
 #include "FS.h"                // SD Card ESP32
 #include "SD_MMC.h"            // SD Card ESP32
 #include "soc/soc.h"           // Disable brownour problems
 #include "soc/rtc_cntl_reg.h"  // Disable brownour problems
 #include "driver/rtc_io.h"
-
+#include <painlessMesh.h>
+#include <ArduinoJson.h>
 #include <esp_now.h>
 #include <WiFi.h>
 #define ONBOADLED 4
@@ -44,16 +33,7 @@
 
 #define fileDatainMessage 240.0
 #define UARTWAITHANDSHACK 1000
-// Global copy of slave
-esp_now_peer_info_t slave;
-#define CHANNEL 1
-#define PRINTSCANRESULTS 1
-#define DELETEBEFOREPAIR 1
 
-// for esp now connect
-unsigned long lastConnectNowAttempt;
-unsigned long nextConnectNowGap = 1000;
-bool isPaired = 0;
 
 // for photo name
 int pictureNumber = 1;
@@ -105,21 +85,21 @@ void setup() {
   }
 
 
-  if (!useUartRX)
-  {
-    // set RX as pullup for safety
-    pinMode(RXPIN, INPUT_PULLUP);
-    Serial.println("We are using the button");
-    //Set device in STA mode to begin with
-    WiFi.mode(WIFI_STA);
-    // This is the mac address of the Master in Station Mode
-    Serial.print("STA MAC: "); Serial.println(WiFi.macAddress());
-    // Init ESPNow with a fallback logic
-    InitESPNow();
-    // Once ESPNow is successfully Init, we will register for Send CB to
-    // get the status of Trasnmitted packet
-    esp_now_register_send_cb(OnDataSent);
-  }
+   if (!useUartRX)
+   {
+     // set RX as pullup for safety
+     pinMode(RXPIN, INPUT_PULLUP);
+     Serial.println("We are using the button");
+     //Set device in STA mode to begin with
+     WiFi.mode(WIFI_STA);
+     // This is the mac address of the Master in Station Mode
+     Serial.print("STA MAC: "); Serial.println(WiFi.macAddress());
+     // Init ESPNow with a fallback logic
+     InitESPNow();
+     // Once ESPNow is successfully Init, we will register for Send CB to
+     // get the status of Trasnmitted packet
+     esp_now_register_send_cb(OnDataSent);
+   }
 
 }
 
