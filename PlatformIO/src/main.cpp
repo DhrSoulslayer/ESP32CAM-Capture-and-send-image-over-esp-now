@@ -48,6 +48,7 @@ String fileName = "/pic.jpg";
 Scheduler userScheduler; // to control your personal task
 Task taskSendMessage( 60000 , TASK_FOREVER, &maakfoto );
 
+const uint16_t PIXELS_PER_PACKET = MAX_PACKET_SIZE - sizeof(ImgMetaData);
 
 
 /*  ============================================================================
@@ -65,10 +66,10 @@ Serial.println(dataArrayLength);
 
   unsigned char * msgtemp = dataArray;
   const char * msg = (const char *)msgtemp;
-Serial.println("Starting Versturen naar master node");
+  Serial.println("Starting Versturen naar master node");
   mesh.sendSingle(1571683145, msg);//Send data to MasterNode.
   Serial.println(msg);
-  sendNextPackageFlag = 1;
+  //sendNextPackageFlag = 1;
 }
 
 // Needed for painless library
@@ -110,51 +111,6 @@ Serial.println("Maak de foto");
 /* ***************************************************************** */
 void takePhoto()
 {
- Serial.println("Starting Take Photo Function"); 
-  takeNextPhotoFlag = 0;
-  Serial.println("Zet de LED aan"); 
-  digitalWrite(4, HIGH);
-  Serial.println("Wacht 50ms"); 
-  delay(50);
-  Serial.println("Initieer camera buffer"); 
-  camera_fb_t * fb = NULL;
-
-  // Take Picture with Camera
-  Serial.println("Vul de  camera buffer"); 
-  fb = esp_camera_fb_get();
-  Serial.println("Controleer camera buffer"); 
-  if (!fb) {
-    Serial.println("Camera capture failed");
-    return;
-  }
-  Serial.println("Zet de LED uit"); 
-  digitalWrite(4, LOW);
-  // Path where new picture will be saved in SD Card
-  String path = "/picture" + String(pictureNumber) + ".jpg";
-
-  fs::FS &fs = SD_MMC;
-  Serial.printf("Picture file name: %s\n", path.c_str());
-
-  fs.remove(path.c_str());
-
-  File file = fs.open(path.c_str(), FILE_WRITE);
-  if (!file) {
-    Serial.println("Failed to open file in writing mode");
-  }
-  else {
-    file.write(fb->buf, fb->len); // payload (image), payload length
-    Serial.printf("Saved file to path: %s\n", path.c_str());
-  }
-  file.close();
-
-  esp_camera_fb_return(fb);
-
-  fileName = path;
-  
-  startTransmit();
-
-  pictureNumber++;
-
 }
 
 /* ***************************************************************** */
@@ -174,7 +130,6 @@ void initSD()
     return;
   }
 }
-
 
 
 /* ***************************************************************** */
@@ -231,6 +186,51 @@ void initCamera()
 
 void startTransmit()
 {
+ Serial.println("Starting Take Photo Function"); 
+  //takeNextPhotoFlag = 0;
+  Serial.println("Zet de LED aan"); 
+  digitalWrite(4, HIGH);
+  Serial.println("Wacht 50ms"); 
+  delay(50);
+  Serial.println("Initieer camera buffer"); 
+  camera_fb_t * fb = NULL;
+
+  // Take Picture with Camera
+  Serial.println("Vul de  camera buffer"); 
+  fb = esp_camera_fb_get();
+  Serial.println("Controleer camera buffer"); 
+  if (!fb) {
+    Serial.println("Camera capture failed");
+    return;
+  }
+  Serial.println("Zet de LED uit"); 
+  digitalWrite(4, LOW);
+  
+  // Path where new picture will be saved in SD Card
+  String path = "/picture" + String(pictureNumber) + ".jpg";
+
+  fs::FS &fs = SD_MMC;
+  Serial.printf("Picture file name: %s\n", path.c_str());
+
+  fs.remove(path.c_str());
+
+  File file = fs.open(path.c_str(), FILE_WRITE);
+  if (!file) {
+    Serial.println("Failed to open file in writing mode");
+  }
+  else {
+    file.write(fb->buf, fb->len); // payload (image), payload length
+    Serial.printf("Saved file to path: %s\n", path.c_str());
+  }
+  file.close();
+
+  esp_camera_fb_return(fb);
+
+  fileName = path;
+  
+
+  pictureNumber++;
+
   Serial.println("Starting transmit");
   fs::FS &fs = SD_MMC;
   File file = fs.open(fileName.c_str(), FILE_READ);
@@ -238,7 +238,7 @@ void startTransmit()
     Serial.println("Failed to open file in writing mode");
     return;
   }
-  Serial.println(file.size());
+//  Serial.println(file.size());
   int fileSize = file.size();
   file.close();
   currentTransmitCurrentPosition = 0;
@@ -246,14 +246,7 @@ void startTransmit()
   Serial.println(currentTransmitTotalPackages);
   uint8_t message[] = {0x01, currentTransmitTotalPackages >> 8, (byte) currentTransmitTotalPackages};
   sendMessage(message, sizeof(message));
-}
 
-/* ***************************************************************** */
-/* SEND NEXT PACKAGE                                                 */
-/* ***************************************************************** */
-
-void sendNextPackage()
-{
   // claer the flag
   sendNextPackageFlag = 0;
 
@@ -314,18 +307,6 @@ void sendNextPackage()
   file.close();
 
 }
-
-void blinkIt(int delayTime, int times)
-{
-  for (int i = 0; i < times; i++)
-  {
-    digitalWrite(ONBOADLED, HIGH);
-    delay(delayTime);
-    digitalWrite(ONBOADLED, LOW);
-    delay(delayTime);
-  }
-}
-
 
 void setup() {
   // NEEDED ????

@@ -133,10 +133,12 @@ void takePhoto()
   // Take Picture with Camera
   Serial.println("Vul de  camera buffer"); 
   fb = esp_camera_fb_get();
+  Serial.println("Controleer camera buffer"); 
   if (!fb) {
     Serial.println("Camera capture failed");
     return;
   }
+  Serial.println("Zet de LED uit"); 
   digitalWrite(4, LOW);
   // Path where new picture will be saved in SD Card
   String path = "/picture" + String(pictureNumber) + ".jpg";
@@ -215,7 +217,7 @@ void initCamera()
 
   Serial.println("psramFound() = " + String(psramFound()));
 
-  if (psramFound()) {
+  if (!psramFound()) {
     config.frame_size = FRAMESIZE_QVGA; //FRAMESIZE_UXGA; // FRAMESIZE_ + QVGA|CIF|VGA|SVGA|XGA|SXGA|UXGA //FRAMESIZE_QVGA
     config.jpeg_quality = 2;
     config.fb_count = 2;
