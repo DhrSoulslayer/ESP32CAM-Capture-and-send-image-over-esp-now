@@ -20,8 +20,6 @@
 
 #include "camera_pins.h"
 
-#define fileDatainMessage 240.0
-
 #define shutterbutton 0
 
 //Define functions for use in platformIO
@@ -46,7 +44,7 @@ byte sendNextPackageFlag = 0;
 String fileName = "/pic.jpg";
 
 Scheduler userScheduler; // to control your personal task
-Task taskSendMessage( 60000 , TASK_FOREVER, &maakfoto );
+Task taskSendMessage( 60000 , TASK_FOREVER, &startTransmit );
 
 /*  ============================================================================
                        Setup for ESP-NOW Mesh Network 
@@ -86,30 +84,7 @@ void nodeTimeAdjustedCallback(int32_t offset) {
     Serial.printf("Adjusted time %u. Offset = %d\n", mesh.getNodeTime(),offset);
 }
 
-/*
-void maakfoto()
-{
-Serial.println("Starting Maak Foto Functie");
-  if (!currentTransmitTotalPackages && !sendNextPackageFlag )
-    takeNextPhotoFlag = 1;
 
-  // if the sendNextPackageFlag is set
-  if (sendNextPackageFlag)
-    sendNextPackage();
-Serial.println("Maak de foto");
-  // if takeNextPhotoFlag is set
-  if (takeNextPhotoFlag)
-    takePhoto();
-
-}
-
-/* ***************************************************************** */
-/* TAKE PHOTO                                                        */
-/* ***************************************************************** 
-void takePhoto()
-{
-}
-*/
 /* ***************************************************************** */
 /* INIT SD                                                           */
 /* ***************************************************************** */
@@ -158,15 +133,9 @@ void initCamera()
 
   Serial.println("psramFound() = " + String(psramFound()));
 
-  if (!psramFound()) {
-    config.frame_size = FRAMESIZE_QVGA; //FRAMESIZE_UXGA; // FRAMESIZE_ + QVGA|CIF|VGA|SVGA|XGA|SXGA|UXGA //FRAMESIZE_QVGA
-    config.jpeg_quality = 2;
-    config.fb_count = 2;
-  } else {
     config.frame_size = FRAMESIZE_SVGA;
     config.jpeg_quality = 12;
     config.fb_count = 1;
-  }
 
   // Init Camera
     esp_err_t err = esp_camera_init(&config);
@@ -177,14 +146,46 @@ void initCamera()
   
 }
 
+
+void stuffPixels(const uint8_t * pixelBuff, const uint16_t &bufStartIndex, const uint16_t &txStartIndex, const uint16_t &len){
+  uint16_t txi = txStartIndex;
+  //Serial.println(pixelBuff);
+  Serial.println(bufStartIndex);
+  Serial.println(txStartIndex);
+  Serial.println(len);
+  for (uint16_t i=bufStartIndex; i<(bufStartIndex + len); i++)  {
+  
+  Serial.println("Starting Versturen naar master node");
+  Serial.println(txi);
+unsigned char * msg;  
+  msg.getBytes(pixelBuff, i)
+//unsigned char * msgtemp;
+  //msgtemp[txi] = pixelBuff[i];
+  //const char * msg = (const char *)msgtemp;
+  mesh.sendSingle(1571683145, msg);//Send data to MasterNode.
+  //Serial.println(msg);
+    txi++;
+  }
+}
+
 /* ***************************************************************** */
 /* START TRASMIT                                                     */
 /* ***************************************************************** */
+struct img_meta_data{
+  uint16_t counter;
+  uint16_t imSize;
+  uint16_t numLoops;
+  uint16_t sizeLastLoop;
+} ImgMetaData;
+const uint16_t MAX_PACKET_SIZE = 250;
+const uint16_t PIXELS_PER_PACKET = MAX_PACKET_SIZE - sizeof(ImgMetaData);
 
 void startTransmit()
 {
+ Serial.println("Startup Camera"); 
+  void initCamera();
+
  Serial.println("Starting Take Photo Function"); 
-  //takeNextPhotoFlag = 0;
   Serial.println("Zet de LED aan"); 
   digitalWrite(4, HIGH);
   Serial.println("Wacht 50ms"); 
@@ -200,111 +201,31 @@ void startTransmit()
   }
   Serial.println("Zet de LED uit"); 
   digitalWrite(4, LOW);
+
+uint16_t startIndex = 0;
+  ImgMetaData.imSize       = fb->len;                             //sizeof(myFb);
+  ImgMetaData.numLoops     = (fb->len / PIXELS_PER_PACKET) + 1;   //(sizeof(myFb)/PIXELS_PER_PACKET) + 1; 
+  ImgMetaData.sizeLastLoop = fb->len % PIXELS_PER_PACKET;         //(sizeof(myFb)%PIXELS_PER_PACKET);
+
+Serial.println("Plaatje grootte: ");
+Serial.println(ImgMetaData.imSize );
+Serial.println("Aantal te versturen pakketten: ");
+Serial.println(ImgMetaData.numLoops );
+Serial.println("SizeLastLoop: ");
+Serial.println(ImgMetaData.sizeLastLoop );
+
+for(ImgMetaData.counter=1; ImgMetaData.counter<=ImgMetaData.numLoops; ImgMetaData.counter++){
+    
+    stuffPixels(fb->buf, startIndex, sizeof(ImgMetaData), PIXELS_PER_PACKET);
   
-  // Path where new picture will be saved in SD Card
-  String path = "/picture" + String(pictureNumber) + ".jpg";
-
-  fs::FS &fs = SD_MMC;
-  Serial.printf("Picture file name: %s\n", path.c_str());
-
-  fs.remove(path.c_str());
-
-  File file = fs.open(path.c_str(), FILE_WRITE);
-  if (!file) {
-    Serial.println("Failed to open file in writing mode");
+    startIndex += PIXELS_PER_PACKET;    
+    delay(100);
+   
   }
-  else {
-    file.write(fb->buf, fb->len); // payload (image), payload length
-    Serial.printf("Saved file to path: %s\n", path.c_str());
-  }
-  file.close();
-
-  esp_camera_fb_return(fb);
-
-  fileName = path;
-  
-  pictureNumber++;
-
-  Serial.println("Starting transmit");
-  fs::FS &fs = SD_MMC;
-  File file = fs.open(fileName.c_str(), FILE_READ);
-  if (!file) {
-    Serial.println("Failed to open file in writing mode");
-    return;
-  }
-//  Serial.println(file.size());
-  int fileSize = file.size();
-  file.close();
-  currentTransmitCurrentPosition = 0;
-  currentTransmitTotalPackages = ceil(fileSize / fileDatainMessage);
-  Serial.println("Aantal te versturen pakketten: ")
-  Serial.println(currentTransmitTotalPackages);
-
-// Hier moet een while loop komen die door de array heen gaat.
-
-  uint8_t message[] = {0x01, currentTransmitTotalPackages >> 8, (byte) currentTransmitTotalPackages};
-  //sendMessage(message, sizeof(message)); // is nog niet nodig
-
-  // claer the flag
-  //sendNextPackageFlag = 0;
-
-  // if got to AFTER the last package
-  if (currentTransmitCurrentPosition == currentTransmitTotalPackages)
-  {
-    currentTransmitCurrentPosition = 0;
-    currentTransmitTotalPackages = 0;
-    Serial.println("Done submiting files");
-    //takeNextPhotoFlag = 1;
-    return;
-  } //end if
-
-  //first read the data.
-  fs::FS &fs = SD_MMC;
-  File file = fs.open(fileName.c_str(), FILE_READ);
-  if (!file) {
-    Serial.println("Failed to open file in writing mode");
-    return;
-  }
-
-  // set array size.
-  int fileDataSize = fileDatainMessage;
-  // if its the last package - we adjust the size !!!
-  if (currentTransmitCurrentPosition == currentTransmitTotalPackages - 1)
-  {
-    Serial.println("*************************");
-    Serial.println(file.size());
-    Serial.println(currentTransmitTotalPackages - 1);
-    Serial.println((currentTransmitTotalPackages - 1)*fileDatainMessage);
-    fileDataSize = file.size() - ((currentTransmitTotalPackages - 1) * fileDatainMessage);
-  }
-
-  // define message array
-  uint8_t messageArray[fileDataSize + 3];
-  messageArray[0] = 0x02;
-
-
-  file.seek(currentTransmitCurrentPosition * fileDatainMessage);
-  currentTransmitCurrentPosition++; // set to current (after seek!!!)
-
-  messageArray[1] = currentTransmitCurrentPosition >> 8;
-  messageArray[2] = (byte) currentTransmitCurrentPosition;
-  for (int i = 0; i < fileDataSize; i++)
-  {
-    if (file.available())
-    {
-      messageArray[3 + i] = file.read();
-    } //end if available
-    else
-    {
-      Serial.println("END !!!");
-      break;
-    }
-  } //end for
-
-  sendMessage(messageArray, sizeof(messageArray));
-  file.close();
+    esp_camera_fb_return(fb);   //clear camera memory
 
 }
+
 
 void setup() {
   // NEEDED ????
