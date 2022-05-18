@@ -48,9 +48,6 @@ String fileName = "/pic.jpg";
 Scheduler userScheduler; // to control your personal task
 Task taskSendMessage( 60000 , TASK_FOREVER, &maakfoto );
 
-const uint16_t PIXELS_PER_PACKET = MAX_PACKET_SIZE - sizeof(ImgMetaData);
-
-
 /*  ============================================================================
                        Setup for ESP-NOW Mesh Network 
   ============================================================================= */
@@ -69,7 +66,7 @@ Serial.println(dataArrayLength);
   Serial.println("Starting Versturen naar master node");
   mesh.sendSingle(1571683145, msg);//Send data to MasterNode.
   Serial.println(msg);
-  //sendNextPackageFlag = 1;
+
 }
 
 // Needed for painless library
@@ -89,7 +86,7 @@ void nodeTimeAdjustedCallback(int32_t offset) {
     Serial.printf("Adjusted time %u. Offset = %d\n", mesh.getNodeTime(),offset);
 }
 
-
+/*
 void maakfoto()
 {
 Serial.println("Starting Maak Foto Functie");
@@ -108,11 +105,11 @@ Serial.println("Maak de foto");
 
 /* ***************************************************************** */
 /* TAKE PHOTO                                                        */
-/* ***************************************************************** */
+/* ***************************************************************** 
 void takePhoto()
 {
 }
-
+*/
 /* ***************************************************************** */
 /* INIT SD                                                           */
 /* ***************************************************************** */
@@ -194,8 +191,6 @@ void startTransmit()
   delay(50);
   Serial.println("Initieer camera buffer"); 
   camera_fb_t * fb = NULL;
-
-  // Take Picture with Camera
   Serial.println("Vul de  camera buffer"); 
   fb = esp_camera_fb_get();
   Serial.println("Controleer camera buffer"); 
@@ -228,7 +223,6 @@ void startTransmit()
 
   fileName = path;
   
-
   pictureNumber++;
 
   Serial.println("Starting transmit");
@@ -243,12 +237,16 @@ void startTransmit()
   file.close();
   currentTransmitCurrentPosition = 0;
   currentTransmitTotalPackages = ceil(fileSize / fileDatainMessage);
+  Serial.println("Aantal te versturen pakketten: ")
   Serial.println(currentTransmitTotalPackages);
+
+// Hier moet een while loop komen die door de array heen gaat.
+
   uint8_t message[] = {0x01, currentTransmitTotalPackages >> 8, (byte) currentTransmitTotalPackages};
-  sendMessage(message, sizeof(message));
+  //sendMessage(message, sizeof(message)); // is nog niet nodig
 
   // claer the flag
-  sendNextPackageFlag = 0;
+  //sendNextPackageFlag = 0;
 
   // if got to AFTER the last package
   if (currentTransmitCurrentPosition == currentTransmitTotalPackages)
